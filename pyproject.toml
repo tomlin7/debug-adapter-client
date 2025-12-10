@@ -5,6 +5,9 @@ description = "Client for Debug Adapter Protocol"
 authors = ["Billy <billydevbusiness@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+packages = [
+    { include = "dap" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
