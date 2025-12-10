@@ -178,7 +178,6 @@ class DAPClient:
         if request and request.command == "initialize":
             assert self._state == ClientState.WAITING_FOR_INITIALIZED
             # Send initialized event
-            self._send_event("initialized")
             event = InitializedEvent(seq=response.seq, type="event", event="initialized")
             self._state = ClientState.NORMAL
             return event
