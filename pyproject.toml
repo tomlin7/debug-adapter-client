@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dap-python"
-version = "1.0.0"
+version = "1.0.1"
 description = "Client for Debug Adapter Protocol"
 authors = ["Billy <billydevbusiness@gmail.com>"]
 license = "MIT"
