@@ -24,16 +24,16 @@ from dap.events import (
     ProcessEvent,
     ModuleEvent
 )
-from dap.structs import JSON
+
 from dap_io import IO
 
 
 class DAPEditor:
-    """Main editor class with fixed DAP debugging support."""
+    """Main editor class with DAP debugging support."""
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("DAP Text Editor - Fixed Version")
+        self.root.title("DAP Text Editor")
         self.root.geometry("1400x900")
         
         # Editor state
@@ -52,6 +52,12 @@ class DAPEditor:
         self.event_queue = queue.Queue()
         
         self.create_menu()
+        
+        # Apply an "old" look theme
+        style = ttk.Style()
+        if 'clam' in style.theme_names():
+            style.theme_use('clam')
+        
         self.create_toolbar()
         self.create_main_panel()
         self.create_status_bar()
@@ -171,21 +177,23 @@ class DAPEditor:
         self.debug_notebook = ttk.Notebook(right_frame)
         self.debug_notebook.pack(fill=tk.BOTH, expand=True)
         
-        # Variables tab
-        self.create_variables_tab()
+        # Debug tab (Variables, Call Stack, Breakpoints)
+        debug_tab = ttk.Frame(self.debug_notebook)
+        self.debug_notebook.add(debug_tab, text="Debug")
         
-        # Call Stack tab
-        self.create_call_stack_tab()
+        self.debug_paned = ttk.PanedWindow(debug_tab, orient=tk.VERTICAL)
+        self.debug_paned.pack(fill=tk.BOTH, expand=True)
         
-        # Breakpoints tab
-        self.create_breakpoints_tab()
+        self.create_variables_panel()
+        self.create_call_stack_panel()
+        self.create_breakpoints_panel()
         
         # Output tab
         self.create_output_tab()
         
-    def create_variables_tab(self):
-        variables_frame = ttk.Frame(self.debug_notebook)
-        self.debug_notebook.add(variables_frame, text="Variables")
+    def create_variables_panel(self):
+        variables_frame = ttk.LabelFrame(self.debug_paned, text="Variables")
+        self.debug_paned.add(variables_frame, weight=1)
         
         # Variables tree
         self.variables_tree = ttk.Treeview(variables_frame, columns=('value', 'type'), show='tree headings')
@@ -204,9 +212,9 @@ class DAPEditor:
         self.variables_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         variables_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
-    def create_call_stack_tab(self):
-        stack_frame = ttk.Frame(self.debug_notebook)
-        self.debug_notebook.add(stack_frame, text="Call Stack")
+    def create_call_stack_panel(self):
+        stack_frame = ttk.LabelFrame(self.debug_paned, text="Call Stack")
+        self.debug_paned.add(stack_frame, weight=1)
         
         # Call stack list
         self.stack_listbox = tk.Listbox(stack_frame)
@@ -216,9 +224,9 @@ class DAPEditor:
         self.stack_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         stack_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
-    def create_breakpoints_tab(self):
-        breakpoints_frame = ttk.Frame(self.debug_notebook)
-        self.debug_notebook.add(breakpoints_frame, text="Breakpoints")
+    def create_breakpoints_panel(self):
+        breakpoints_frame = ttk.LabelFrame(self.debug_paned, text="Breakpoints")
+        self.debug_paned.add(breakpoints_frame, weight=1)
         
         # Breakpoints tree
         self.breakpoints_tree = ttk.Treeview(breakpoints_frame, columns=('line', 'status'), show='tree headings')
