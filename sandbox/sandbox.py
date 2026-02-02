@@ -148,23 +148,36 @@ class DAPEditor:
         editor_frame = ttk.Frame(left_frame)
         editor_frame.pack(fill=tk.BOTH, expand=True)
         
+        # Common font for alignment
+        self.editor_font = ('Consolas', 11)
+        
         # Line numbers
         self.line_numbers = tk.Text(editor_frame, width=4, padx=3, pady=3, takefocus=0,
-                                   border=0, background='lightgray', state=tk.DISABLED)
+                                   border=0, background='lightgray', state=tk.DISABLED,
+                                   font=self.editor_font)
         self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
         
         # Breakpoint indicators
-        self.breakpoint_canvas = tk.Canvas(editor_frame, width=20, bg='lightgray')
+        self.breakpoint_canvas = tk.Canvas(editor_frame, width=20, bg='lightgray', highlightthickness=0)
         self.breakpoint_canvas.pack(side=tk.LEFT, fill=tk.Y)
         
         # Main editor
-        self.editor = scrolledtext.ScrolledText(editor_frame, wrap=tk.NONE, undo=True, font=('Consolas', 10))
+        self.editor = scrolledtext.ScrolledText(editor_frame, wrap=tk.NONE, undo=True, font=self.editor_font)
         self.editor.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Bind events
+        # Bind events for alignment and updates
         self.editor.bind('<KeyRelease>', self.on_text_change)
         self.editor.bind('<Button-1>', self.on_click)
         self.editor.bind('<Control-Button-1>', self.toggle_breakpoint)
+        self.editor.bind('<Configure>', lambda e: self.update_line_numbers())
+        
+        # Sync scrolling
+        def sync_scroll(*args):
+            self.line_numbers.yview_moveto(args[0])
+            self.update_breakpoint_indicators()
+            
+        # We need to hook into the underlying text widget's scroll
+        self.editor.vbar.config(command=self.on_scroll)
         
         # Bind breakpoint canvas clicks
         self.breakpoint_canvas.bind('<Button-1>', self.on_breakpoint_click)
@@ -263,15 +276,21 @@ class DAPEditor:
         self.debug_status_label = ttk.Label(self.status_bar, text="Not Debugging")
         self.debug_status_label.pack(side=tk.RIGHT, padx=5)
         
+    def on_scroll(self, *args):
+        self.editor.yview(*args)
+        self.line_numbers.yview_moveto(self.editor.yview()[0])
+        self.update_breakpoint_indicators()
+
     def update_line_numbers(self):
         self.line_numbers.config(state=tk.NORMAL)
         self.line_numbers.delete(1.0, tk.END)
         
         line_count = int(self.editor.index('end-1c').split('.')[0])
-        for i in range(1, line_count + 1):
-            self.line_numbers.insert(tk.END, f"{i}\n")
+        lines = "\n".join(str(i) for i in range(1, line_count + 1))
+        self.line_numbers.insert(1.0, lines)
             
         self.line_numbers.config(state=tk.DISABLED)
+        self.line_numbers.yview_moveto(self.editor.yview()[0])
         
         # Update breakpoint indicators
         self.update_breakpoint_indicators()
@@ -279,14 +298,16 @@ class DAPEditor:
     def update_breakpoint_indicators(self):
         self.breakpoint_canvas.delete("all")
         
-        line_count = int(self.editor.index('end-1c').split('.')[0])
-        line_height = 21  # approximate line height
-        
         for line_num in self.breakpoints:
-            if line_num <= line_count:
-                y = (line_num - 1) * line_height + 10
-                # Draw a red circle for breakpoint
-                self.breakpoint_canvas.create_oval(5, y-5, 15, y+5, fill='red', outline='darkred')
+            # Use dlineinfo to get the exact y-coordinate of the line on screen
+            try:
+                dinfo = self.editor.dlineinfo(f"{line_num}.0")
+                if dinfo:
+                    y = dinfo[1] + (dinfo[3] // 2)
+                    # Draw a red circle for breakpoint
+                    self.breakpoint_canvas.create_oval(5, y-5, 15, y+5, fill='red', outline='darkred')
+            except tk.TclError:
+                continue
         
     def on_text_change(self, event=None):
         self.update_line_numbers()
@@ -298,12 +319,25 @@ class DAPEditor:
         if not self.current_file:
             return
             
-        line_height = 20
-        line_num = (event.y // line_height) + 1
-        if line_num in self.breakpoints:
-            self.remove_breakpoint(line_num)
-        else:
-            self.add_breakpoint(line_num)
+        # Find which line was clicked by comparing y-coordinate with dlineinfo
+        line_count = int(self.editor.index('end-1c').split('.')[0])
+        clicked_line = None
+        
+        for i in range(1, line_count + 1):
+            dinfo = self.editor.dlineinfo(f"{i}.0")
+            if dinfo:
+                y_start = dinfo[1]
+                y_end = dinfo[1] + dinfo[3]
+                if y_start <= event.y <= y_end:
+                    clicked_line = i
+                    break
+        
+        if clicked_line:
+            if clicked_line in self.breakpoints:
+                self.remove_breakpoint(clicked_line)
+            else:
+                self.add_breakpoint(clicked_line)
+        self.update_breakpoint_indicators()
         
     def toggle_breakpoint(self, event=None):
         if not self.current_file:
